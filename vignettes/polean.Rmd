@@ -1,0 +1,128 @@
+---
+title: "Introduction to polean"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to polean}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+library(polean)
+```
+
+## Motivation
+
+R's logical type has three values: `TRUE`, `FALSE`, and `NA`. The third
+is propagating: any expression involving `NA` is itself `NA`, which is
+usually the right thing for missing data but is the wrong thing when
+`NA` is being used as a placeholder for *something that resembles a
+logical but should not propagate*.
+
+A few examples:
+
+- A flag derived from a numeric threshold where the boundary case is
+  ambiguous, but you still want downstream logical operations to work.
+- A boolean reduction of a column where you want to preserve the
+  distinction between "genuinely true" and "true but with caveats."
+- Any case where you would otherwise reach for a 4-state truth value
+  (true, false, neither, both) but want the extra states to behave
+  numerically like ordinary booleans.
+
+`polean` introduces a non-propagating extension of the logical type that
+preserves numerical equivalence with base R while adding two new
+literals.
+
+## The five literals
+
+Every polean is one of five values:
+
+| Literal    | Orientation | Strictness |
+|------------|-------------|------------|
+| `TRUE`     | true        | strict     |
+| `FALSE`    | false       | strict     |
+| `ISH(1)`   | true        | ish        |
+| `ISH(0)`   | false       | ish        |
+| `NA`       | NA          | NA         |
+
+`TRUE` and `ISH(1)` share the same orientation (true) but differ in
+strictness. Likewise for `FALSE` and `ISH(0)`. Internally, every polean
+is stored as a single complex number: the real part is the orientation
+(0, 1, or NA) and the imaginary part is the strictness flag (0 for
+strict, 1 for ish).
+
+## Two equality regimes
+
+```{r}
+polean(TRUE) == polean(TRUE)   # TRUE
+polean(1) == polean(TRUE)      # FALSE: differ in strictness
+polean(1) == 1                 # TRUE:  numerical equivalence
+polean(TRUE) == 1              # TRUE:  numerical equivalence
+```
+
+Boolean equality (polean vs polean, or polean vs base `logical`)
+requires both orientation *and* strictness to agree. Numerical equality
+(polean vs base `numeric`) requires only orientation. The point is to
+preserve the invariant that `polean(x) == x` whenever `x` is a numeric
+or logical scalar, while still letting users distinguish strict from
+ish at the polean level.
+
+## Three ways to construct a polean
+
+```{r}
+polean(TRUE)         # TRUE        (logical input -> strict)
+polean(1)            # ISH(1)      (numeric input -> ish)
+polean(1+0i)         # TRUE        (complex with Im=0 -> strict)
+polean(1+1i)         # ISH(1)      (complex with Im!=0 -> ish)
+
+as.polean("TRUE")    # TRUE
+as.polean("1.5")     # ISH(1)
+as.polean(list(TRUE, 1, NA))
+
+ISH(1)               # ISH(1)
+ISH(TRUE)            # TRUE        (ISH delegates by R type)
+```
+
+`polean()` and `ISH()` are both wrappers around `as.polean()`. The
+difference is that `ISH()` enforces a length-1 input, so it can be used
+as a literal-style constructor; `polean()` accepts any length.
+
+### Why is `polean(1)` ish, not strict?
+
+A numeric `1` in user code is rarely meant as a boolean literal, but it
+is often *used* in boolean-adjacent contexts (e.g. `sum(x == y)`,
+flags from a `0/1` indicator vector). Treating it as ish marks the
+fact that the user passed a number, not a logical, while keeping the
+numerical comparison `polean(1) == 1` true. If you want a strict
+`TRUE` from a numeric, use `polean(TRUE)`, `polean(1+0i)`, or
+`as.polean("TRUE")`.
+
+## Combination
+
+```{r}
+c(polean(TRUE), polean(1), NA)
+c(polean(TRUE), 1, 1.5, FALSE)
+```
+
+When concatenating, polean inputs are preserved as-is and non-polean
+inputs are coerced individually via `as.polean()`. Each element keeps
+whatever orientation/strictness its R type implies.
+
+## Display
+
+```{r}
+polean(c(TRUE, FALSE, NA))
+polean(c(1, 0, NA))
+c(polean(TRUE), ISH(1), NA, FALSE)
+```
+
+## Status
+
+This package is in early development. The current release covers
+construction, coercion, equality, and combination. Logical operators
+(`&`, `|`, `!`) and arithmetic interactions are not yet defined; their
+semantics under the strict/ish split are still being worked out.
