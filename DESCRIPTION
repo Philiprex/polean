@@ -1,4 +1,4 @@
-Package: polean
+Package: Polean
 Type: Package
 Title: Complex-Encoded Semi-Boolean Extension of the R Logical Type
 Version: 0.9.0
