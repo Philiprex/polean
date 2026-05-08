@@ -64,6 +64,8 @@ setClassUnion("characterLike", c("character", "array"))
 #' polean(1, dim = c(2, 3))      # 2x3 array of ISH(1)
 #' polean(c(0, 1), dim = c(2, 3))
 #'
+#' @name polean
+#' @aliases polean-class
 #' @seealso \code{\link{as.polean}}, \code{\link{ISH}}
 #' @export polean
 #' @exportClass polean

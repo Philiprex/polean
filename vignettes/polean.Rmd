@@ -15,6 +15,9 @@ knitr::opts_chunk$set(
 library(polean)
 ```
 
+For a brief package-level overview, see `?"polean-package"`. For the
+class and constructor, see `?polean`.
+
 ## Motivation
 
 R's logical type has three values: `TRUE`, `FALSE`, and `NA`. The third

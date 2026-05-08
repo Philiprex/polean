@@ -41,6 +41,16 @@ x[1:2]
 length(x)
 ```
 
+## Documentation
+
+After loading the package:
+
+- `?"polean-package"` — package-level overview
+- `?polean` — the `polean` class and its constructor
+- `?as.polean` — coercion methods
+- `?ISH` — length-1 polean literal constructor
+- `vignette("polean")` — introductory vignette (requires `build_vignettes = TRUE` at install)
+
 ## License
 
 MIT. See [LICENSE.md](LICENSE.md).
