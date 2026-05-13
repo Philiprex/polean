@@ -253,13 +253,14 @@ setMethod("show", "polean", function(object) {
 #' @export POL_NA
 NULL
 
+POL_1     <- new("polean", 1L, 1L)
+POL_0     <- new("polean", 0L, 1L)
+POL_TRUE  <- new("polean", 1L, 0L)
+POL_FALSE <- new("polean", 0L, 0L)
+POL_NA    <- new("polean", NA_integer_, 0L)
+
 .onLoad = function(libname, pkgname){
   ns = asNamespace(pkgname)
-  assign("POL_1", new("polean", 1L, 1L), envir=ns)
-  assign("POL_0", new("polean", 0L, 1L), envir=ns)
-  assign("POL_TRUE", new("polean", 1L, 0L), envir=ns)
-  assign("POL_FALSE", new("polean", 0L, 0L), envir=ns)
-  assign("POL_NA", new("polean", NA_integer_, 0L), envir=ns)
   lockBinding("POL_1", ns)
   lockBinding("POL_0", ns)
   lockBinding("POL_TRUE", ns)
