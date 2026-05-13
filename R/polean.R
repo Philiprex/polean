@@ -1,9 +1,13 @@
 #' polean: Complex-Encoded Semi-Boolean Extension of the R Logical Type
 #'
-#' A non-propagating extension of R's logical type that adds two literals
-#' (\code{ISH(1)}, \code{ISH(0)}) alongside \code{TRUE}, \code{FALSE},
-#' and \code{NA}. Each polean is stored as a complex number whose real
-#' part holds orientation and whose imaginary part holds strictness.
+#' A non-propagating extension of R's logical type. In addition to
+#' \code{POL_TRUE}, \code{POL_FALSE}, and \code{POL_NA}, polean adds
+#' two further literals (\code{POL_1} and \code{POL_0}): values that
+#' share numerical equivalence with \code{TRUE} and \code{FALSE} but
+#' not boolean equivalence. Each value is stored internally as a
+#' complex number whose real part carries the truth orientation and
+#' whose imaginary part records whether the value is strict
+#' (\code{0}) or not (\code{1}).
 #'
 #' @keywords internal
 #' @aliases polean-package
@@ -11,215 +15,269 @@
 "_PACKAGE"
 
 # --- Setup
-
-# definition
 setClassUnion("complexLike", c("complex", "array"))
 setClassUnion("characterLike", c("character", "array"))
 
 #' polean class and constructor
 #'
-#' S4 class for non-propagating, semi-boolean values. A polean has five
-#' literals: \code{TRUE}, \code{FALSE}, \code{ISH(1)}, \code{ISH(0)},
-#' and \code{NA}.
+#' S4 class for non-propagating, semi-boolean values. A polean takes
+#' one of five literal values: \code{POL_TRUE}, \code{POL_FALSE},
+#' \code{POL_1}, \code{POL_0}, or \code{POL_NA}. The literals are
+#' also available as locked length-1 package objects (see
+#' \code{\link{polean-literals}}).
 #'
 #' @details
 #' Internally each element is a complex number. The real part is the
-#' orientation (\code{0}, \code{1}, or \code{NA}). The imaginary part
-#' is the strictness flag (\code{0} for strict, \code{1} for ish).
+#' orientation (\code{0L}, \code{1L}, or \code{NA_integer_}). The
+#' imaginary part is the strictness flag (\code{0L} for strict,
+#' \code{1L} for not strict). The \code{name} slot mirrors the shape of
+#' \code{value} and holds the printed label.
 #'
-#' \code{polean(orientation, treat_logical, dim)} calls the class
-#' initializer. The initializer validates that \code{orientation} is
-#' coercible to \code{0}, \code{1}, or \code{NA}, and that
-#' \code{treat_logical} is coercible to \code{0} or \code{1} (no
-#' \code{NA}). When \code{dim} is supplied, both \code{orientation}
-#' and \code{treat_logical} are recycled to \code{prod(dim)} and the
-#' result is shaped to that array dimension.
+#' \code{polean()} is the user-facing constructor. The
+#' \code{orientation} argument is parsed by \code{as.logical}, so any
+#' input for which \code{as.logical(x)} yields \code{TRUE},
+#' \code{FALSE}, or \code{NA} is accepted. The \code{strict} argument
+#' is taken at face value: \code{TRUE} produces a strict polean
+#' (\code{POL_TRUE}/\code{POL_FALSE}), \code{FALSE} produces not strict
+#' (\code{POL_1}/\code{POL_0}); the default is \code{FALSE} (not strict).
+#' When \code{dim} is supplied, both arguments are recycled to
+#' \code{prod(dim)} and the result is shaped to that dimension.
 #'
-#' The \code{value} slot stores
-#' \code{complex(real = orientation, imaginary = !treat_logical)}.
-#' The \code{name} slot stores the printed name of each element
-#' (\code{"TRUE"}, \code{"FALSE"}, \code{"ISH(1)"}, \code{"ISH(0)"},
-#' or \code{NA}).
+#' For coercion that uses the R type of the input to decide
+#' strictness, see \code{\link{as.polean}}.
 #'
 #' @slot value A \code{complexLike} (complex vector or complex array).
-#' @slot name A \code{characterLike} (character vector or character array)
-#'   matching the shape of \code{value}.
+#' @slot name A \code{characterLike} (character vector or character
+#'   array) matching the shape of \code{value}. Elements are drawn
+#'   from \code{c("POL_TRUE", "POL_FALSE", "POL_1", "POL_0",
+#'   "POL_NA")}.
 #'
-#' @param orientation Logical or numeric, coercible to \code{0},
-#'   \code{1}, or \code{NA}.
-#' @param treat_logical Logical or numeric, coercible to \code{0} or
-#'   \code{1}; \code{NA} not allowed. Default \code{FALSE}: result is
-#'   ish. \code{TRUE}: result is strict.
+#' @param orientation Anything for which \code{as.logical} yields one
+#'   or more of \code{TRUE}, \code{FALSE}, \code{NA}. Length must be
+#'   \eqn{\ge 1}.
+#' @param strict Anything for which \code{as.logical} yields one
+#'   or more of \code{TRUE}, \code{FALSE}, \code{NA}. Length must be
+#'   \eqn{\ge 1}, and at least one value must not be \code{NA}. Default \code{FALSE}.
 #' @param dim Integer vector of array dimensions, or \code{NULL}. When
-#'   non-null, \code{orientation} and \code{treat_logical} are recycled
-#'   to \code{prod(dim)}.
+#'   non-null, \code{orientation} and \code{strict} are recycled to
+#'   \code{prod(dim)}.
 #'
 #' @return An object of class \code{polean}.
 #'
 #' @examples
-#' polean(TRUE)                  # ISH(1)   (default treat_logical = FALSE)
-#' polean(TRUE, TRUE)            # TRUE
-#' polean(1, TRUE)               # TRUE
-#' polean(c(1, 0, NA))           # ISH(1) ISH(0) NA
-#' polean(1, dim = c(2, 3))      # 2x3 array of ISH(1)
+#' polean(TRUE)                       # POL_1   (strict = FALSE by default)
+#' polean(TRUE, strict = TRUE)        # POL_TRUE
+#' polean(1, strict = TRUE)           # POL_TRUE
+#' polean(c(1, 0, NA))                # POL_1 POL_0 POL_NA
+#' polean(1, dim = c(2, 3))           # 2x3 array of POL_1
 #' polean(c(0, 1), dim = c(2, 3))
 #'
 #' @name polean
 #' @aliases polean-class
-#' @seealso \code{\link{as.polean}}, \code{\link{ISH}}
-#' @export polean
-#' @exportClass polean
-setClass(Class="polean", slots = list(value="complexLike", name="characterLike"))
+#' @seealso \code{\link{as.polean}}, \code{\link{polean-literals}}
+#' @export
+setClass("polean", slots = list(value="complexLike", name="characterLike"), prototype = list(value=1+1i, name="POL_1"))
 
-# initializer
-setMethod("initialize", "polean", function(.Object, orientation, treat_logical, dim, ...){
+setMethod("initialize", "polean", function(.Object, orientation, strict, dim=NULL, ...){
   .Object = callNextMethod(.Object, ...)
+
+  if (is.null(orientation)){
+    stop('`orientation` must not be null')
+  } else if (!is(orientation, "integer") || length(orientation)==0){
+    stop("`orientation` must be an integer with length > 0")
+  } else if (!all(orientation %in% c(0,1,NA_integer_))){
+    stop("Values of `orientation` must be 0L, 1L or NA_integer_")
+  } else if (is.null(strict)){
+    stop("`strict` must not be NULL")
+  } else if (!is(strict, "integer") || length(strict)==0){
+    stop("`strict` must be integer with length > 0")
+  } else if (!all(strict %in% c(0,1,NA_integer_))){
+    stop("Values of `strict` must be 0L, 1L or NA_integer_")
+  } else if (all(is.na(strict))){
+    stop("At least one value of `strict` must not be NA")
+  } else if (!is.null(dim) & length(orientation)!=prod(dim)){
+    warning(paste0("Got input length ", length(orientation), " but dim=c(", paste(dim, collapse=","), "). Input will be recycled to fill dim."), call.=F)
+  }
+
   if (!is.null(dim)){
     n = prod(dim)
     orientation = rep_len(orientation, n)
-    treat_logical = rep_len(treat_logical, n)
+    strict = rep_len(strict, n)
   }
-  if (!(all(as.integer(orientation) %in% c(0,1,NA)))){
-    badEntries = unique(orientation[which(!(as.integer(orientation) %in% c(0,1,NA)))])
-    stop(paste0("orientation must be logical or coercible to 1 or 0, not ", badEntries))
-  } else if (!(all(as.integer(treat_logical) %in% c(0,1))) | anyNA(treat_logical)){
-    badEntries = unique(treat_logical[!(as.integer(treat_logical) %in% c(0,1)) | is.na(treat_logical)])
-    stop(paste0("treat_logical must be logical or coercible to 1 or 0 and not NA, not ", badEntries))
-  } else {
-    .Object@value = complex(real=orientation, imaginary=!treat_logical)
-    .Object@name = as.character(sapply(.Object@value, function(v) ifelse(is.na(v), NA, ifelse(Im(v)==0, as.logical(Re(v)), paste0("ISH(", Re(v), ")")))))
-    if (!is.null(dim)){
-      dim(.Object@value) = dim
-      dim(.Object@name) = dim
-    }
-    .Object
+  .Object@value = complex(real=orientation, imaginary=strict)
+  .Object@name = as.character(sapply(.Object@value, function(e) ifelse(is.na(e), "POL_NA", paste0("POL_", ifelse(Im(e)==1, Re(e), as.logical(Re(e)))))))
+  if (!is.null(dim)){
+    dim(.Object@value) = dim
+    dim(.Object@name) = dim
   }
+
+  .Object
+
 })
 
-# constructor
-polean = function(orientation, treat_logical=F, dim=NULL) new("polean", orientation, treat_logical=treat_logical, dim=dim)
-
-# --- Coercion from polean
-setMethod("as.integer", "polean", function(x) Re(x@value))
-setMethod("as.numeric", "polean", function(x) Re(x@value))
-setMethod("as.complex", "polean", function(x) x@value)
-setMethod("as.character", "polean", function(x) x@name)
-setMethod("as.logical", "polean", function(x) Re(x@value)==1L)
-
-# --- Coercion to polean
-
-#' Coerce an object to a polean
-#'
-#' Generic and methods for coercing R objects to the polean type. Each
-#' method delegates to \code{\link{polean}} with arguments derived from
-#' the input's R type.
-#'
-#' @param x Object to coerce.
-#' @param ... Further arguments passed to \code{\link{polean}}
-#'   (e.g. \code{dim}; \code{treat_logical} where applicable).
-#'
-#' @section Methods:
-#' \describe{
-#'   \item{\code{integer}, \code{double}, \code{numeric}}{
-#'     \code{polean(as.logical(x), ...)}. Default \code{treat_logical = FALSE}
-#'     produces ish values.}
-#'   \item{\code{complex}}{
-#'     \code{polean(Re(x), treat_logical = !Im(x), ...)}. Real part gives
-#'     orientation; imaginary part flips strictness (\code{Im == 0} is
-#'     strict, \code{Im != 0} is ish).}
-#'   \item{\code{logical}}{
-#'     \code{polean(x, treat_logical = TRUE, ...)}. Strict.}
-#'   \item{\code{character}}{
-#'     Each element is parsed: strings in \code{c("T","TRUE","F","FALSE")}
-#'     become logical; otherwise, strings that round-trip through
-#'     \code{as.complex} become complex; otherwise, the string is parsed
-#'     as numeric. The vector of parsed values is then passed back through
-#'     \code{as.polean}.}
-#'   \item{\code{list}}{
-#'     Each element is coerced via \code{as.polean}; the resulting
-#'     \code{value} slots are unlisted and passed back through
-#'     \code{as.polean}.}
-#' }
-#'
-#' @return A polean.
-#'
-#' @examples
-#' as.polean(1)        # ISH(1)
-#' as.polean(0)        # ISH(0)
-#' as.polean(TRUE)     # TRUE
-#' as.polean(1+0i)     # TRUE     (Im == 0 -> strict)
-#' as.polean(1+1i)     # ISH(1)   (Im != 0 -> ish)
-#' as.polean("TRUE")   # TRUE
-#' as.polean("1+0i")   # TRUE
-#' as.polean("1.5")    # ISH(1)
-#' as.polean(list(TRUE, 1, 1+1i))
-#'
-#' @seealso \code{\link{polean}}, \code{\link{ISH}}
+#' @rdname polean
 #' @export
-setGeneric("as.polean", function(x, ...) standardGeneric("as.polean"))
-
-setMethod("as.polean", "integer", function(x, ...) polean(as.logical(x), ...))
-setMethod("as.polean", "double", function(x, ...) polean(as.logical(x), ...))
-setMethod("as.polean", "numeric", function(x, ...) polean(as.logical(x), ...))
-setMethod("as.polean", "complex", function(x, ...) polean(Re(x), treat_logical=!Im(x), ...))
-setMethod("as.polean", "logical", function(x, ...) polean(x, treat_logical=T, ...))
-setMethod("as.polean", "list", function(x) as.polean(unlist(sapply(x, function(e) as.polean(e)@value))))
-setMethod("as.polean", "character", function(x, ...) as.polean(lapply(x, function(e) ifelse(e %in% c("T", "TRUE", "F", "FALSE"), as.logical(e), ifelse(e==as.character(as.complex(e)), as.complex(e), as.numeric(e))))))
-
-# type object
-
-#' Length-1 polean literal constructor
-#'
-#' Returns one of the five polean literals (\code{TRUE}, \code{FALSE},
-#' \code{ISH(1)}, \code{ISH(0)}, \code{NA}). Input must be length 1 and
-#' must coerce to one of \code{0+0i}, \code{1+0i}, \code{0+1i},
-#' \code{1+1i}, or \code{NA}; otherwise an error is raised.
-#'
-#' @details
-#' \code{ISH} delegates to \code{\link{as.polean}}: the input's R type
-#' determines the result. \code{ISH(1)} returns \code{ISH(1)} (numeric
-#' input, default \code{treat_logical = FALSE}). \code{ISH(TRUE)}
-#' returns \code{TRUE} (logical input, \code{treat_logical = TRUE}).
-#' \code{ISH(1+0i)} returns \code{TRUE}; \code{ISH(1+1i)} returns
-#' \code{ISH(1)}.
-#'
-#' @param val A length-1 input acceptable to \code{\link{as.polean}}.
-#' @return A length-1 polean.
-#'
-#' @examples
-#' ISH(1)         # ISH(1)
-#' ISH(0)         # ISH(0)
-#' ISH(TRUE)      # TRUE
-#' ISH(1+0i)      # TRUE
-#' ISH(1+1i)      # ISH(1)
-#' ISH(NA)        # NA
-#'
-#' @seealso \code{\link{polean}}, \code{\link{as.polean}}
-#' @export
-ISH = function(val){
-  if (as.complex(val) %in% c(0+0i,1+0i,0+1i,1+1i,NA) & length(val)){
-    return(as.polean(val))
-  } else {
-    stop(paste0("Input for polean literal must be NA or coerce to 0+0i, 1+0i, 0+1i, 1+1i, or NA and be of length 1, not, ", val))
-  }
+polean = function(orientation, strict=FALSE, dim=NULL){
+  orientation=as.integer(sapply(orientation, as.logical))
+  strict=as.integer(!sapply(strict, as.logical))
+  new("polean",
+      orientation=orientation,
+      strict=strict,
+      dim=dim)
 }
 
-# --- Combine multiple poleans into one (non-logical, non-polean input will have treat_logical=F)
+# --- Accessors
 
+#' polean accessors
+#'
+#' Read-only accessors for the slots and derived attributes of a
+#' polean.
+#'
+#' \describe{
+#'   \item{\code{value(x)}}{The underlying complex value (slot
+#'     \code{@@value}).}
+#'   \item{\code{name(x)}}{The printed label (slot \code{@@name}), one
+#'     of \code{"POL_TRUE"}, \code{"POL_FALSE"}, \code{"POL_1"},
+#'     \code{"POL_0"}, \code{"POL_NA"}.}
+#'   \item{\code{orientation(x)}}{The truth orientation as logical:
+#'     \code{TRUE} for \code{POL_1}/\code{POL_TRUE}, \code{FALSE} for
+#'     \code{POL_0}/\code{POL_FALSE}, \code{NA} for \code{POL_NA}.}
+#'   \item{\code{strict(x)}}{\code{TRUE} for strict
+#'     (\code{POL_TRUE}/\code{POL_FALSE}), \code{FALSE} for not strict
+#'     (\code{POL_1}/\code{POL_0}). For \code{POL_NA} elements the
+#'     return value is implementation-defined; treat it as
+#'     undefined.}
+#' }
+#'
+#' @param x A polean.
+#' @return A vector or array matching the shape of \code{x}; element
+#'   type depends on the accessor.
+#'
+#' @name polean-accessors
+NULL
+
+#' @rdname polean-accessors
 #' @export
-setMethod("c", "polean", function(x, ...) {
-  args = c(list(x), list(...))
-  values = unlist(lapply(args, function(a) {
-    Re(as.complex((a)))
-  }))
-  treat_logicals = unlist(lapply(args, function(a) {
-    sapply(1:length(a), function(i) ifelse(is(a[i], "polean"), !Im(a@value[i]), !Im(as.polean(a[i])@value)))
-  }))
+setGeneric("value", function(x) standardGeneric("value"))
+setMethod("value", "polean", function(x) x@value)
 
-  polean(values, treat_logicals)
+#' @rdname polean-accessors
+#' @export
+setGeneric("name", function(x) standardGeneric("name"))
+setMethod("name", "polean", function(x) x@name)
+
+#' @rdname polean-accessors
+#' @export
+setGeneric("orientation", function(x) standardGeneric("orientation"))
+setMethod("orientation", "polean", function(x) as.logical(Re(x@value)))
+
+#' @rdname polean-accessors
+#' @export
+setGeneric("strict", function(x) standardGeneric("strict"))
+setMethod("strict", "polean", function(x) !as.logical(Im(x@value)))
+
+# --- Show
+setMethod("show", "polean", function(object) {
+  print(object@name, quote=F)
 })
 
-# --- Length, Index, Which
+# --- Literals
+
+#' polean literals
+#'
+#' The five locked length-1 literals exported by the package.
+#'
+#' \describe{
+#'   \item{\code{POL_1}}{Orientation true, not strict (encoding \code{1+1i}).}
+#'   \item{\code{POL_0}}{Orientation false, not strict (encoding \code{0+1i}).}
+#'   \item{\code{POL_TRUE}}{Orientation true, strict (encoding \code{1+0i}).}
+#'   \item{\code{POL_FALSE}}{Orientation false, strict (encoding \code{0+0i}).}
+#'   \item{\code{POL_NA}}{NA orientation. \code{is.na(POL_NA)} is \code{TRUE}.}
+#' }
+#'
+#' Each literal is assigned in the package namespace at load time and
+#' has its binding locked. To obtain a multi-element polean, use
+#' \code{\link{polean}} or \code{\link{as.polean}}, or concatenate
+#' literals with \code{c()}.
+#'
+#' @section Numerical and boolean equivalence:
+#'
+#' The literals participate in two distinct equality regimes, chosen
+#' by the R type on the other side of \code{==}:
+#'
+#' \describe{
+#'   \item{Numerical (other side is \code{numeric} / \code{integer})}{
+#'     Only the orientation (the real part of the encoding) is
+#'     compared. Strict and not-strict literals with the same
+#'     orientation are both numerically equal to the corresponding
+#'     number.}
+#'   \item{Boolean (other side is \code{logical}, \code{complex}, or
+#'     another \code{polean})}{The full complex encoding is compared,
+#'     so both orientation and strictness must agree.}
+#' }
+#'
+#' Examples:
+#' \preformatted{
+#'   # Numerical: orientation only
+#'   POL_TRUE  == 1        # TRUE
+#'   POL_1     == 1        # TRUE
+#'   POL_FALSE == 0        # TRUE
+#'   POL_0     == 0        # TRUE
+#'   POL_NA    == 1        # NA
+#'
+#'   # Boolean: orientation and strictness must both match
+#'   POL_TRUE  == TRUE     # TRUE     (1+0i == 1+0i)
+#'   POL_1     == TRUE     # FALSE    (1+1i != 1+0i)
+#'   POL_FALSE == FALSE    # TRUE     (0+0i == 0+0i)
+#'   POL_0     == FALSE    # FALSE    (0+1i != 0+0i)
+#'   POL_TRUE  == POL_1    # FALSE    (1+0i != 1+1i)
+#'   POL_FALSE == POL_0    # FALSE    (0+0i != 0+1i)
+#'   POL_NA    == POL_NA   # NA
+#' }
+#'
+#' The asymmetry preserves the invariant
+#' \code{as.polean(x) == x} for numeric \code{x} (since
+#' \code{as.polean()} on numeric input produces a not-strict polean,
+#' and numerical equivalence ignores strictness), while still letting
+#' callers distinguish strict from not-strict whenever a polean is on
+#' both sides of \code{==} or the other side is logical or complex.
+#'
+#' @format A length-1 \code{\link{polean}}.
+#' @name polean-literals
+#' @aliases POL_1 POL_0 POL_TRUE POL_FALSE POL_NA pol_literals
+#' @seealso \code{\link{polean}}, \code{\link{as.polean}}
+#' @export POL_1
+#' @export POL_0
+#' @export POL_TRUE
+#' @export POL_FALSE
+#' @export POL_NA
+NULL
+
+.onLoad = function(libname, pkgname){
+  ns = asNamespace(pkgname)
+  assign("POL_1", new("polean", 1L, 1L, NULL), envir=ns)
+  assign("POL_0", new("polean", 0L, 1L, NULL), envir=ns)
+  assign("POL_TRUE", new("polean", 1L, 0L, NULL), envir=ns)
+  assign("POL_FALSE", new("polean", 0L, 0L, NULL), envir=ns)
+  assign("POL_NA", new("polean", NA_integer_, 0L, NULL), envir=ns)
+  lockBinding("POL_1", ns)
+  lockBinding("POL_0", ns)
+  lockBinding("POL_TRUE", ns)
+  lockBinding("POL_FALSE", ns)
+  lockBinding("POL_NA", ns)
+  invisible()
+}
+.onUnload = function(libname, pkgname){
+  ns = asNamespace(pkgname)
+  unlockBinding("POL_1", ns)
+  unlockBinding("POL_0", ns)
+  unlockBinding("POL_TRUE", ns)
+  unlockBinding("POL_FALSE", ns)
+  unlockBinding("POL_NA", ns)
+  invisible()
+}
+
+# --- Length, Which, Indexing, Dims
 setMethod("length", "polean", function(x) length(x@value))
 setMethod("which", "polean", function(x) callNextMethod(as.logical(x)))
 
@@ -257,9 +315,84 @@ setMethod("dim<-", "polean", function(x, value){
   x
 })
 
-# --- Display
-setMethod("show", "polean", function(object) {
-  return(print(object@name, quote=F))
+# --- Coerce from Polean
+setMethod("as.integer", "polean", function(x) Re(x@value))
+setMethod("as.numeric", "polean", function(x) Re(x@value))
+setMethod("as.complex", "polean", function(x) x@value)
+setMethod("as.character", "polean", function(x) x@name)
+setMethod("as.logical", "polean", function(x) Re(x@value)==1L)
+
+# --- Coerce to Polean
+setGeneric("getOrientation", function(x) standardGeneric("getOrientation"))
+
+setMethod("getOrientation", "ANY", function(x) as.integer(as.logical(x)))
+setMethod("getOrientation", "complex", function(x) as.integer(as.logical(Re(x))))
+setMethod("getOrientation", "character", function(x) as.integer(sapply(x, function(e) ifelse(e %in% c("T", "TRUE", "F", "FALSE"), as.logical(e), ifelse(e==as.character(as.complex(e)), getOrientation(as.complex(e)), getOrientation(as.numeric(e)))))))
+setMethod("getOrientation", "logical", function(x) as.integer(x))
+setMethod("getOrientation", "polean", function(x) as.integer(Re(x@value)))
+
+setGeneric("getStrict", function(x) standardGeneric("getStrict"))
+
+setMethod("getStrict", "ANY", function(x) 1L)
+setMethod("getStrict", "complex", function(x) as.integer(as.logical(Im(x))))
+setMethod("getStrict", "character", function(x) as.integer(sapply(x, function(e) ifelse(e %in% c("T", "TRUE", "F", "FALSE"), 0L, ifelse(e==as.character(as.complex(e)), getStrict(as.complex(e)), getStrict(as.numeric(e)))))))
+setMethod("getStrict", "logical", function(x) 0L)
+setMethod("getStrict", "polean", function(x) as.integer(Im(x@value)))
+
+#' Coerce an object to a polean
+#'
+#' Type-dispatched coercion to \code{\link{polean}}. Unlike
+#' \code{\link{polean}}, which is parametric over strictness via the
+#' \code{strict} argument, \code{as.polean()} reads strictness from
+#' the R type of the input.
+#'
+#' @details
+#' Strictness by input type:
+#' \describe{
+#'   \item{\code{logical}}{strict (\code{POL_TRUE}/\code{POL_FALSE}).}
+#'   \item{\code{integer}, \code{double}, \code{numeric} (via the
+#'     \code{ANY} method)}{not strict (\code{POL_1}/\code{POL_0}).}
+#'   \item{\code{complex}}{strict if \code{Im(x) == 0}, else not strict}
+#'   \item{\code{character}}{parsed element-wise: strings in
+#'     \code{c("T", "TRUE", "F", "FALSE")} are treated as logical;
+#'     otherwise, strings that round-trip through \code{as.complex}
+#'     are parsed as complex; otherwise as numeric. The parsed value
+#'     is then re-dispatched.}
+#'   \item{\code{list}}{coerced element-wise via the rules above.}
+#'   \item{\code{polean}}{preserved in encoding.}
+#' }
+#'
+#' @param x Object to coerce.
+#' @param ... Further arguments passed to \code{new("polean", ...)}
+#'   (e.g. \code{dim}).
+#'
+#' @return A polean.
+#'
+#' @examples
+#' as.polean(TRUE)                  # POL_TRUE
+#' as.polean(1)                     # POL_1
+#' as.polean(1+0i)                  # POL_TRUE
+#' as.polean(1+1i)                  # POL_1
+#' as.polean("TRUE")                # POL_TRUE
+#' as.polean("1+0i")                # POL_TRUE
+#' as.polean("1.5")                 # POL_1
+#' as.polean(list(TRUE, 1, NA))     # POL_TRUE POL_1 POL_NA
+#'
+#' @seealso \code{\link{polean}}, \code{\link{polean-literals}}
+#' @export
+setGeneric("as.polean", function(x, ...) standardGeneric("as.polean"))
+
+setMethod("as.polean", "ANY", function(x, ...) new("polean", getOrientation(x), getStrict(x), ...))
+setMethod("as.polean", "list", function(x, ...) new("polean", sapply(x, getOrientation), as.integer(sapply(x, getStrict)), ...))
+
+# List with Polean
+#' @export
+setMethod("c", "polean", function(x, ...) {
+  args = c(list(x), list(...))
+  values = unlist(lapply(args, getOrientation))
+  treat_logicals = unlist(lapply(args, getStrict))
+
+  new("polean", values, treat_logicals)
 })
 
 # --- Equality

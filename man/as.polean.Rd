@@ -9,54 +9,45 @@ as.polean(x, ...)
 \arguments{
 \item{x}{Object to coerce.}
 
-\item{...}{Further arguments passed to \code{\link{polean}}
-(e.g. \code{dim}; \code{treat_logical} where applicable).}
+\item{...}{Further arguments passed to \code{new("polean", ...)}
+(e.g. \code{dim}).}
 }
 \value{
 A polean.
 }
 \description{
-Generic and methods for coercing R objects to the polean type. Each
-method delegates to \code{\link{polean}} with arguments derived from
-the input's R type.
+Type-dispatched coercion to \code{\link{polean}}. Unlike
+\code{\link{polean}}, which is parametric over strictness via the
+\code{strict} argument, \code{as.polean()} reads strictness from
+the R type of the input.
 }
-\section{Methods}{
-
+\details{
+Strictness by input type:
 \describe{
-  \item{\code{integer}, \code{double}, \code{numeric}}{
-    \code{polean(as.logical(x), ...)}. Default \code{treat_logical = FALSE}
-    produces ish values.}
-  \item{\code{complex}}{
-    \code{polean(Re(x), treat_logical = !Im(x), ...)}. Real part gives
-    orientation; imaginary part flips strictness (\code{Im == 0} is
-    strict, \code{Im != 0} is ish).}
-  \item{\code{logical}}{
-    \code{polean(x, treat_logical = TRUE, ...)}. Strict.}
-  \item{\code{character}}{
-    Each element is parsed: strings in \code{c("T","TRUE","F","FALSE")}
-    become logical; otherwise, strings that round-trip through
-    \code{as.complex} become complex; otherwise, the string is parsed
-    as numeric. The vector of parsed values is then passed back through
-    \code{as.polean}.}
-  \item{\code{list}}{
-    Each element is coerced via \code{as.polean}; the resulting
-    \code{value} slots are unlisted and passed back through
-    \code{as.polean}.}
+  \item{\code{logical}}{strict (\code{POL_TRUE}/\code{POL_FALSE}).}
+  \item{\code{integer}, \code{double}, \code{numeric} (via the
+    \code{ANY} method)}{not strict (\code{POL_1}/\code{POL_0}).}
+  \item{\code{complex}}{strict if \code{Im(x) == 0}, else not strict}
+  \item{\code{character}}{parsed element-wise: strings in
+    \code{c("T", "TRUE", "F", "FALSE")} are treated as logical;
+    otherwise, strings that round-trip through \code{as.complex}
+    are parsed as complex; otherwise as numeric. The parsed value
+    is then re-dispatched.}
+  \item{\code{list}}{coerced element-wise via the rules above.}
+  \item{\code{polean}}{preserved in encoding.}
 }
 }
-
 \examples{
-as.polean(1)        # ISH(1)
-as.polean(0)        # ISH(0)
-as.polean(TRUE)     # TRUE
-as.polean(1+0i)     # TRUE     (Im == 0 -> strict)
-as.polean(1+1i)     # ISH(1)   (Im != 0 -> ish)
-as.polean("TRUE")   # TRUE
-as.polean("1+0i")   # TRUE
-as.polean("1.5")    # ISH(1)
-as.polean(list(TRUE, 1, 1+1i))
+as.polean(TRUE)                  # POL_TRUE
+as.polean(1)                     # POL_1
+as.polean(1+0i)                  # POL_TRUE
+as.polean(1+1i)                  # POL_1
+as.polean("TRUE")                # POL_TRUE
+as.polean("1+0i")                # POL_TRUE
+as.polean("1.5")                 # POL_1
+as.polean(list(TRUE, 1, NA))     # POL_TRUE POL_1 POL_NA
 
 }
 \seealso{
-\code{\link{polean}}, \code{\link{ISH}}
+\code{\link{polean}}, \code{\link{polean-literals}}
 }

@@ -12,7 +12,8 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
-library(polean)
+# library(polean)
+devtools::load_all()
 ```
 
 For a brief package-level overview, see `?"polean-package"`. For the
@@ -20,11 +21,11 @@ class and constructor, see `?polean`.
 
 ## Motivation
 
-R's logical type has three values: `TRUE`, `FALSE`, and `NA`. The third
-is propagating: any expression involving `NA` is itself `NA`, which is
-usually the right thing for missing data but is the wrong thing when
-`NA` is being used as a placeholder for *something that resembles a
-logical but should not propagate*.
+R's logical type has three values: `TRUE`, `FALSE`, and `NA`. The
+third is propagating: any expression involving `NA` is itself `NA`,
+which is usually the right thing for missing data but is the wrong
+thing when `NA` is being used as a placeholder for *something that
+resembles a logical but should not propagate*.
 
 A few examples:
 
@@ -36,91 +37,154 @@ A few examples:
   (true, false, neither, both) but want the extra states to behave
   numerically like ordinary booleans.
 
-`polean` introduces a non-propagating extension of the logical type that
-preserves numerical equivalence with base R while adding two new
+`polean` introduces a non-propagating extension of the logical type
+that preserves numerical equivalence with base R while adding two new
 literals.
 
 ## The five literals
 
 Every polean is one of five values:
 
-| Literal    | Orientation | Strictness |
-|------------|-------------|------------|
-| `TRUE`     | true        | strict     |
-| `FALSE`    | false       | strict     |
-| `ISH(1)`   | true        | ish        |
-| `ISH(0)`   | false       | ish        |
-| `NA`       | NA          | NA         |
+| Literal      | Orientation | Strictness  |
+|--------------|-------------|-------------|
+| `POL_TRUE`   | true        | strict      |
+| `POL_FALSE`  | false       | strict      |
+| `POL_1`      | true        | not strict  |
+| `POL_0`      | false       | not strict  |
+| `POL_NA`     | NA          | —           |
 
-`TRUE` and `ISH(1)` share the same orientation (true) but differ in
-strictness. Likewise for `FALSE` and `ISH(0)`. Internally, every polean
-is stored as a single complex number: the real part is the orientation
-(0, 1, or NA) and the imaginary part is the strictness flag (0 for
-strict, 1 for ish).
+`POL_TRUE` and `POL_1` share the same orientation (true) but differ in
+strictness. Likewise for `POL_FALSE` and `POL_0`. Internally, every
+polean is stored as a single complex number: the real part is the
+orientation (0, 1, or NA) and the imaginary part is the strictness
+flag (0 for strict, 1 for not strict).
+
+The five values are exported as locked length-1 package objects of
+those names and can be used directly:
+
+```{r}
+POL_1
+POL_TRUE
+POL_NA
+```
+
+## Two constructors
+
+There are two constructors. They differ in whether the strictness
+distinction is decided by an explicit flag (`polean()`) or by the R
+type of the input (`as.polean()`).
+
+### `polean(orientation, strict = FALSE, dim = NULL)`
+
+The basic constructor. It does *not* dispatch on the R type of
+`orientation`: strictness is set entirely by `strict`. The default
+`strict = FALSE` produces not-strict values; pass `TRUE` for strict.
+
+```{r}
+polean(TRUE)                         # POL_1   — default strict = FALSE
+polean(1)                            # POL_1   — same; type is ignored
+polean(c(1, 0, NA))                  # POL_1 POL_0 POL_NA
+polean(TRUE, strict = TRUE)          # POL_TRUE
+polean(1, strict = TRUE)             # POL_TRUE
+polean(1, dim = c(2, 3))             # 2x3 array of POL_1
+```
+
+### `as.polean(x)`
+
+Type-dispatched coercion. The R type of `x` determines whether the
+result is strict or not strict:
+
+| Input type                        | Behavior                                |
+|-----------------------------------|-----------------------------------------|
+| `logical`                         | strict                                  |
+| `integer`, `double`, `numeric`    | not strict                              |
+| `complex`                         | strict if `Im(x) == 0`, else not strict |
+| `character`                       | parse element-wise, then re-dispatch    |
+| `list`                            | element-wise coercion                   |
+
+```{r}
+as.polean(TRUE)                  # POL_TRUE
+as.polean(1)                     # POL_1
+as.polean(1+0i)                  # POL_TRUE
+as.polean(1+1i)                  # POL_1
+as.polean("TRUE")                # POL_TRUE
+as.polean("1+0i")                # POL_TRUE
+as.polean("1.5")                 # POL_1
+as.polean(list(TRUE, 1, NA))     # POL_TRUE POL_1 POL_NA
+```
+
+### Why does `as.polean(1)` produce `POL_1`, not `POL_TRUE`?
+
+A numeric `1` in user code is rarely meant as a boolean literal, but
+it is often *used* in boolean-adjacent contexts (e.g. `sum(x == y)`,
+flags from a 0/1 indicator vector). Treating it as not strict marks
+the fact that the user passed a number, not a logical, while keeping
+the numerical comparison `as.polean(1) == 1` true. To get a strict
+`POL_TRUE` from numeric input, either coerce to logical first
+(`as.polean(as.logical(1))`), pass a real-valued complex
+(`as.polean(1+0i)`), or use the constructor with the explicit flag
+(`polean(1, strict = TRUE)`).
+
+## Accessors
+
+```{r}
+x <- c(POL_TRUE, POL_1, POL_FALSE, POL_NA)
+value(x)         # underlying complex encoding
+name(x)          # printed labels
+orientation(x)   # truth orientation as logical
+strict(x)        # strict (TRUE) vs not strict (FALSE)
+```
+
+The return value of `strict()` on a `POL_NA` element is
+implementation-defined; treat it as undefined.
 
 ## Two equality regimes
 
 ```{r}
-polean(TRUE) == polean(TRUE)   # TRUE
-polean(1) == polean(TRUE)      # FALSE: differ in strictness
-polean(1) == 1                 # TRUE:  numerical equivalence
-polean(TRUE) == 1              # TRUE:  numerical equivalence
+POL_TRUE == POL_TRUE                 # TRUE  — same orientation and strictness
+POL_TRUE == POL_1                    # FALSE — differ in strictness
+POL_1    == 1                        # TRUE  — numerical equivalence
+POL_TRUE == 1                        # TRUE  — numerical equivalence
+POL_TRUE == TRUE                     # TRUE  — full encoding matches (1+0i == 1+0i)
+POL_1    == TRUE                     # FALSE — full encoding differs (1+1i != 1+0i)
 ```
 
-Boolean equality (polean vs polean, or polean vs base `logical`)
-requires both orientation *and* strictness to agree. Numerical equality
-(polean vs base `numeric`) requires only orientation. The point is to
-preserve the invariant that `polean(x) == x` whenever `x` is a numeric
-or logical scalar, while still letting users distinguish strict from
-ish at the polean level.
+Equality has two regimes:
 
-## Three ways to construct a polean
+- **Encoded** (`polean == polean`, `polean == logical`, `polean == complex`):
+  compares the full complex encoding, so both orientation and
+  strictness must agree.
+- **Numerical** (`polean == numeric`): compares only orientation
+  (`Re(value) == e2`), so a not-strict and a strict polean of the same
+  orientation both equal the same number.
 
-```{r}
-polean(TRUE)         # TRUE        (logical input -> strict)
-polean(1)            # ISH(1)      (numeric input -> ish)
-polean(1+0i)         # TRUE        (complex with Im=0 -> strict)
-polean(1+1i)         # ISH(1)      (complex with Im!=0 -> ish)
-
-as.polean("TRUE")    # TRUE
-as.polean("1.5")     # ISH(1)
-as.polean(list(TRUE, 1, NA))
-
-ISH(1)               # ISH(1)
-ISH(TRUE)            # TRUE        (ISH delegates by R type)
-```
-
-`polean()` and `ISH()` are both wrappers around `as.polean()`. The
-difference is that `ISH()` enforces a length-1 input, so it can be used
-as a literal-style constructor; `polean()` accepts any length.
-
-### Why is `polean(1)` ish, not strict?
-
-A numeric `1` in user code is rarely meant as a boolean literal, but it
-is often *used* in boolean-adjacent contexts (e.g. `sum(x == y)`,
-flags from a `0/1` indicator vector). Treating it as ish marks the
-fact that the user passed a number, not a logical, while keeping the
-numerical comparison `polean(1) == 1` true. If you want a strict
-`TRUE` from a numeric, use `polean(TRUE)`, `polean(1+0i)`, or
-`as.polean("TRUE")`.
+The asymmetry preserves the invariant `as.polean(x) == x` for numeric
+`x`, while still letting users distinguish strict from not strict
+whenever a polean is on both sides — or the other side is logical or
+complex.
 
 ## Combination
 
+`c()` preserves orientation and strictness for polean inputs, and
+applies `as.polean()` element-wise to non-polean inputs.
+
 ```{r}
-c(polean(TRUE), polean(1), NA)
-c(polean(TRUE), 1, 1.5, FALSE)
+c(POL_TRUE, POL_1, NA)               # POL_TRUE POL_1   POL_NA
+c(POL_TRUE, 1, FALSE)                # POL_TRUE POL_1   POL_FALSE
+c(polean(TRUE), 1, FALSE)            # POL_1    POL_1   POL_FALSE
 ```
 
-When concatenating, polean inputs are preserved as-is and non-polean
-inputs are coerced individually via `as.polean()`. Each element keeps
-whatever orientation/strictness its R type implies.
+The contrast between the second and third examples is just the
+constructor difference: `polean(TRUE)` is not strict (constructor
+default), while `POL_TRUE` is strict.
 
 ## Display
 
 ```{r}
-polean(c(TRUE, FALSE, NA))
-polean(c(1, 0, NA))
-c(polean(TRUE), ISH(1), NA, FALSE)
+polean(c(TRUE, FALSE, NA))             # POL_1 POL_0 POL_NA          — constructor default: not strict
+as.polean(c(TRUE, FALSE, NA))          # POL_TRUE POL_FALSE POL_NA   — logical input -> strict
+as.polean(c(1, 0, NA))                 # POL_1 POL_0 POL_NA          — numeric input -> not strict
+c(POL_TRUE, POL_1, NA, POL_FALSE)
 ```
 
 ## Status
@@ -128,4 +192,4 @@ c(polean(TRUE), ISH(1), NA, FALSE)
 This package is in early development. The current release covers
 construction, coercion, equality, and combination. Logical operators
 (`&`, `|`, `!`) and arithmetic interactions are not yet defined; their
-semantics under the strict/ish split are still being worked out.
+semantics under the strictness split are still being worked out.

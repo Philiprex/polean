@@ -5,63 +5,72 @@
 \alias{polean}
 \alias{polean-class}
 \title{polean class and constructor}
+\usage{
+polean(orientation, strict = FALSE, dim = NULL)
+}
 \arguments{
-\item{orientation}{Logical or numeric, coercible to \code{0},
-\code{1}, or \code{NA}.}
+\item{orientation}{Anything for which \code{as.logical} yields one
+or more of \code{TRUE}, \code{FALSE}, \code{NA}. Length must be
+\eqn{\ge 1}.}
 
-\item{treat_logical}{Logical or numeric, coercible to \code{0} or
-\code{1}; \code{NA} not allowed. Default \code{FALSE}: result is
-ish. \code{TRUE}: result is strict.}
+\item{strict}{Anything for which \code{as.logical} yields one
+or more of \code{TRUE}, \code{FALSE}, \code{NA}. Length must be
+\eqn{\ge 1}, and at least one value must not be \code{NA}. Default \code{FALSE}.}
 
 \item{dim}{Integer vector of array dimensions, or \code{NULL}. When
-non-null, \code{orientation} and \code{treat_logical} are recycled
-to \code{prod(dim)}.}
+non-null, \code{orientation} and \code{strict} are recycled to
+\code{prod(dim)}.}
 }
 \value{
 An object of class \code{polean}.
 }
 \description{
-S4 class for non-propagating, semi-boolean values. A polean has five
-literals: \code{TRUE}, \code{FALSE}, \code{ISH(1)}, \code{ISH(0)},
-and \code{NA}.
+S4 class for non-propagating, semi-boolean values. A polean takes
+one of five literal values: \code{POL_TRUE}, \code{POL_FALSE},
+\code{POL_1}, \code{POL_0}, or \code{POL_NA}. The literals are
+also available as locked length-1 package objects (see
+\code{\link{polean-literals}}).
 }
 \details{
 Internally each element is a complex number. The real part is the
-orientation (\code{0}, \code{1}, or \code{NA}). The imaginary part
-is the strictness flag (\code{0} for strict, \code{1} for ish).
+orientation (\code{0L}, \code{1L}, or \code{NA_integer_}). The
+imaginary part is the strictness flag (\code{0L} for strict,
+\code{1L} for not strict). The \code{name} slot mirrors the shape of
+\code{value} and holds the printed label.
 
-\code{polean(orientation, treat_logical, dim)} calls the class
-initializer. The initializer validates that \code{orientation} is
-coercible to \code{0}, \code{1}, or \code{NA}, and that
-\code{treat_logical} is coercible to \code{0} or \code{1} (no
-\code{NA}). When \code{dim} is supplied, both \code{orientation}
-and \code{treat_logical} are recycled to \code{prod(dim)} and the
-result is shaped to that array dimension.
+\code{polean()} is the user-facing constructor. The
+\code{orientation} argument is parsed by \code{as.logical}, so any
+input for which \code{as.logical(x)} yields \code{TRUE},
+\code{FALSE}, or \code{NA} is accepted. The \code{strict} argument
+is taken at face value: \code{TRUE} produces a strict polean
+(\code{POL_TRUE}/\code{POL_FALSE}), \code{FALSE} produces not strict
+(\code{POL_1}/\code{POL_0}); the default is \code{FALSE} (not strict).
+When \code{dim} is supplied, both arguments are recycled to
+\code{prod(dim)} and the result is shaped to that dimension.
 
-The \code{value} slot stores
-\code{complex(real = orientation, imaginary = !treat_logical)}.
-The \code{name} slot stores the printed name of each element
-(\code{"TRUE"}, \code{"FALSE"}, \code{"ISH(1)"}, \code{"ISH(0)"},
-or \code{NA}).
+For coercion that uses the R type of the input to decide
+strictness, see \code{\link{as.polean}}.
 }
 \section{Slots}{
 
 \describe{
 \item{\code{value}}{A \code{complexLike} (complex vector or complex array).}
 
-\item{\code{name}}{A \code{characterLike} (character vector or character array)
-matching the shape of \code{value}.}
+\item{\code{name}}{A \code{characterLike} (character vector or character
+array) matching the shape of \code{value}. Elements are drawn
+from \code{c("POL_TRUE", "POL_FALSE", "POL_1", "POL_0",
+"POL_NA")}.}
 }}
 
 \examples{
-polean(TRUE)                  # ISH(1)   (default treat_logical = FALSE)
-polean(TRUE, TRUE)            # TRUE
-polean(1, TRUE)               # TRUE
-polean(c(1, 0, NA))           # ISH(1) ISH(0) NA
-polean(1, dim = c(2, 3))      # 2x3 array of ISH(1)
+polean(TRUE)                       # POL_1   (strict = FALSE by default)
+polean(TRUE, strict = TRUE)        # POL_TRUE
+polean(1, strict = TRUE)           # POL_TRUE
+polean(c(1, 0, NA))                # POL_1 POL_0 POL_NA
+polean(1, dim = c(2, 3))           # 2x3 array of POL_1
 polean(c(0, 1), dim = c(2, 3))
 
 }
 \seealso{
-\code{\link{as.polean}}, \code{\link{ISH}}
+\code{\link{as.polean}}, \code{\link{polean-literals}}
 }

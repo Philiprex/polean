@@ -5,10 +5,14 @@
 \alias{polean-package}
 \title{polean: Complex-Encoded Semi-Boolean Extension of the R Logical Type}
 \description{
-A non-propagating extension of R's logical type that adds two literals
-(\code{ISH(1)}, \code{ISH(0)}) alongside \code{TRUE}, \code{FALSE},
-and \code{NA}. Each polean is stored as a complex number whose real
-part holds orientation and whose imaginary part holds strictness.
+A non-propagating extension of R's logical type. In addition to
+\code{POL_TRUE}, \code{POL_FALSE}, and \code{POL_NA}, polean adds
+two further literals (\code{POL_1} and \code{POL_0}): values that
+share numerical equivalence with \code{TRUE} and \code{FALSE} but
+not boolean equivalence. Each value is stored internally as a
+complex number whose real part carries the truth orientation and
+whose imaginary part records whether the value is strict
+(\code{0}) or not (\code{1}).
 }
 \author{
 \strong{Maintainer}: Philip Eigen \email{pceigen@gmail.com} (\href{https://orcid.org/0009-0001-5000-7396}{ORCID})

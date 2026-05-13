@@ -3,7 +3,7 @@ Type: Package
 Title: Complex-Encoded Semi-Boolean Extension of the R Logical Type
 Version: 0.9.0
 Authors@R: person(given = "Philip", family = "Eigen", email = "pceigen@gmail.com", role = c("aut", "cre"), comment = c(ORCID = "0009-0001-5000-7396"))
-Description: Provides a non-propagating extension of R's logical type. In addition to TRUE, FALSE, and NA, polean introduces ISH(1) and ISH(0): values that share numerical equivalence with TRUE and FALSE but not boolean equivalence. Each value is represented internally as a complex number whose real part carries the truth orientation and whose imaginary part records whether the value is strict or ish. Coercion behavior is defined to avoid the propagation that NA would force.
+Description: Provides a non-propagating extension of R's logical type. In addition to POL_TRUE, POL_FALSE, and POL_NA, polean introduces POL_1 and POL_0: values that share numerical equivalence with TRUE and FALSE but not boolean equivalence. Each value is represented internally as a complex number whose real part carries the truth orientation and whose imaginary part records whether the value is strict or not strict. Coercion behavior is defined to avoid the propagation that NA would force.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Depends: R (>= 4.0)
